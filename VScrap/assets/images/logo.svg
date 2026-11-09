@@ -1,0 +1,29 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#262624"/>
+      <stop offset="50%" stop-color="#1E1E1C"/>
+      <stop offset="100%" stop-color="#141412"/>
+    </linearGradient>
+    <linearGradient id="vGrad" x1="270" y1="320" x2="750" y2="750" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F2EEE6"/>
+      <stop offset="40%" stop-color="#D8CBB3"/>
+      <stop offset="100%" stop-color="#B3A386"/>
+    </linearGradient>
+    <linearGradient id="arrowGrad" x1="512" y1="250" x2="512" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#5B8AFF"/>
+      <stop offset="100%" stop-color="#2F6BFF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="52%" r="42%">
+      <stop offset="0%" stop-color="#2F6BFF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#2F6BFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="520" r="340" fill="url(#glow)"/>
+
+  <path d="M276 330 L512 730 L748 330" stroke="url(#vGrad)" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M512 260 L512 490" stroke="url(#arrowGrad)" stroke-width="60" stroke-linecap="round"/>
+  <path d="M444 430 L512 496 L580 430" stroke="url(#arrowGrad)" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
