@@ -1,0 +1,11 @@
+node_modules/
+.venv/
+.env
+.env.*
+cookies*.txt
+*.cookies
+*.cookie
+.git/
+.gitignore
+pnpm-debug.log*
+npm-debug.log*
