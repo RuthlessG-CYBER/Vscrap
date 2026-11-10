@@ -1,6 +1,4 @@
 const express = require('express');
-const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const axios = require('axios');
 const { assertSafeUrl } = require('../middleware/ssrfGuard');
@@ -219,20 +217,14 @@ async function pipeShareMedia(req, res, next, media) {
     return;
   }
 
-  // Video is muxed to a temp file as a standard (non-fragmented) MP4 so the
-  // saved file has a proper moov box with duration metadata — every phone
-  // player can detect the video length. Headers are flushed immediately so
-  // OkHttp's 10 s read timeout is not hit while ffmpeg muxes; the body
-  // (with Content-Length) follows once the temp file is ready.
-  res.flushHeaders();
-
-  const tempFile = path.join(os.tmpdir(), `vscrap-${Date.now()}.${config.videoFormat}`);
-  const child = spawnMuxStream(media, tempFile);
+  // Stream a fragmented MP4 as ffmpeg produces it. Buffering the complete
+  // encode to disk before sending the body leaves native clients waiting on a
+  // silent response; Expo's downloader can time out while a long video muxes.
+  const child = spawnMuxStream(media, 'pipe:1');
   const timer = setTimeout(() => child.kill('SIGKILL'), config.shareDownloadTimeoutMs);
   const stop = () => {
     clearTimeout(timer);
     child.kill('SIGKILL');
-    try { fs.unlinkSync(tempFile); } catch {}
   };
 
   child.on('error', (error) => {
@@ -244,45 +236,37 @@ async function pipeShareMedia(req, res, next, media) {
     }
   });
 
-  res.on('close', stop);
-
-  child.on('close', (code) => {
-    clearTimeout(timer);
-    if (code !== 0) {
+  let streamedBytes = 0;
+  child.stdout.on('data', (chunk) => {
+    if (res.destroyed) return;
+    streamedBytes += chunk.length;
+    if (streamedBytes > config.maxDownloadBytes) {
       stop();
-      if (!res.headersSent) next(upstreamFailure('The download could not be prepared'));
+      res.destroy();
       return;
     }
-
-    fs.stat(tempFile, (err, stat) => {
-      if (err) {
-        stop();
-        if (!res.headersSent) next(upstreamFailure('The download could not be prepared'));
-        return;
-      }
-      if (stat.size > config.maxDownloadBytes) {
-        stop();
-        if (!res.headersSent) {
-          const err = new Error('The media file is too large');
-          err.status = 413;
-          next(err);
-        }
-        return;
-      }
-      if (!res.headersSent) {
-        res.setHeader('Content-Length', String(stat.size));
-      }
-      const readStream = fs.createReadStream(tempFile);
-      readStream.on('error', (error) => {
-        stop();
-        res.destroy(error);
-      });
-      readStream.pipe(res);
-      readStream.on('end', () => {
-        try { fs.unlinkSync(tempFile); } catch {}
-      });
-    });
+    if (!res.write(chunk)) {
+      child.stdout.pause();
+      res.once('drain', () => child.stdout.resume());
+    }
   });
+
+  child.stdout.on('error', (error) => {
+    stop();
+    if (!res.destroyed) res.destroy(error);
+  });
+
+  res.on('close', stop);
+  child.on('close', (code) => {
+    clearTimeout(timer);
+    if (code === 0) {
+      if (!res.destroyed) res.end();
+      return;
+    }
+    if (!res.destroyed) res.destroy(new Error('Video encoding failed'));
+  });
+
+  res.flushHeaders();
 }
 
 function upstreamFailure(message, status = 502) {
