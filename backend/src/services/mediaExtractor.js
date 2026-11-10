@@ -358,6 +358,43 @@ function assertWithinSizeLimit(bytes) {
   }
 }
 
+function estimateVideoSizeBytes(durationSeconds, height, format) {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return null;
+
+  const isHls = String(format.protocol || '').startsWith('m3u8');
+  const hasAudio = Boolean(format.acodec && format.acodec !== 'none');
+  const outputAudioKbps = 128;
+  const sourceAudioKbps = Number(format.abr) || 0;
+  const knownSize = Number(format.filesize || format.filesize_approx);
+
+  if (knownSize > 0 && !isHls) {
+    const audioAdjustmentKbps = hasAudio
+      ? outputAudioKbps - sourceAudioKbps
+      : outputAudioKbps;
+    return Math.max(
+      1,
+      Math.round(knownSize + (audioAdjustmentKbps * durationSeconds * 1000) / 8)
+    );
+  }
+
+  // HLS bitrate metadata can be inflated, so use a resolution-based estimate.
+  const fallbackKbps =
+    height >= 2160 ? 12000 :
+    height >= 1440 ? 8000 :
+    height >= 1080 ? 4500 :
+    height >= 720 ? 2500 :
+    height >= 480 ? 1000 :
+    height >= 360 ? 700 :
+    height >= 240 ? 400 : 200;
+  const reportedKbps = Number(format.tbr);
+  const totalKbps = !isHls && reportedKbps > 0 ? reportedKbps : fallbackKbps;
+  const videoKbps = hasAudio && sourceAudioKbps > 0
+    ? Math.max(1, totalKbps - sourceAudioKbps)
+    : totalKbps;
+
+  return Math.round(((videoKbps + outputAudioKbps) * durationSeconds * 1000) / 8);
+}
+
 /**
  * Read title/size without downloading the media.
  */
@@ -371,17 +408,20 @@ async function extractMediaInfo(rawUrl, format) {
   // (cookies, no -f flag) that already works for the formats endpoint.
   if (source === 'instagram' || source === 'youtube' || source === 'facebook') {
     const listResult = await listFormats(targetUrl);
-    const videoOpt = listResult.formats.find((f) => f.kind === 'video');
-    const audioOpt = listResult.formats.find((f) => f.kind === 'audio');
-    const chosen = selection.kind === 'audio' ? audioOpt : videoOpt || audioOpt;
+    const videoOptions = listResult.formats.filter((f) => f.kind === 'video');
+    const audioOptions = listResult.formats.filter((f) => f.kind === 'audio');
+    const chosen = selection.kind === 'audio'
+      ? audioOptions.find((f) => f.bitrate === selection.bitrate) || audioOptions[0]
+      : selection.height
+        ? videoOptions.find((f) => f.height === selection.height) ||
+          videoOptions.find((f) => f.height < selection.height) ||
+          videoOptions[0]
+        : videoOptions[0];
     const ext = selection.kind === 'audio' ? 'mp3' : 'mp4';
     const title = sanitizeFilename(listResult.title || 'vscrap-video');
     const durationSeconds = listResult.durationSeconds || null;
     const filename = `${title || 'vscrap-video'}.${ext}`;
-    const contentLength =
-      selection.kind === 'audio' && durationSeconds && selection.bitrate
-        ? Math.round((durationSeconds * selection.bitrate * 1000) / 8)
-        : chosen?.filesize ?? null;
+    const contentLength = chosen?.filesize ?? null;
     assertWithinSizeLimit(contentLength);
 
     return {
@@ -390,6 +430,7 @@ async function extractMediaInfo(rawUrl, format) {
       contentType:
         selection.kind === 'audio' ? 'audio/mpeg' : 'video/mp4',
       contentLength,
+      sizeEstimated: contentLength !== null,
       mediaType: selection.kind === 'audio' ? 'audio' : 'video',
       filename,
       durationSeconds,
@@ -434,12 +475,13 @@ async function extractMediaInfo(rawUrl, format) {
 
   const ext = selection.kind === 'audio' ? 'mp3' : String(info.ext || 'mp4').toLowerCase();
   const title = sanitizeFilename(info.title || info.description || 'vscrap-video');
-  const durationSeconds2 = Number.isFinite(info.duration) ? Math.round(info.duration) : null;
+  const durationExact = Number.isFinite(info.duration) ? info.duration : null;
+  const durationSeconds2 = durationExact === null ? null : Math.round(durationExact);
   const filename2 = `${title || 'vscrap-video'}.${ext === 'webm' ? 'webm' : ext}`;
   const contentLength =
     selection.kind === 'audio'
-      ? durationSeconds2
-        ? Math.round((durationSeconds2 * selection.bitrate * 1000) / 8)
+      ? durationExact
+        ? Math.round((durationExact * selection.bitrate * 1000) / 8)
         : null
       : sumKnownSize(formatEntries(info));
   assertWithinSizeLimit(contentLength);
@@ -507,7 +549,8 @@ async function listFormats(rawUrl) {
     throw err;
   }
 
-  const durationSeconds = Number.isFinite(info.duration) ? Math.round(info.duration) : null;
+  const durationExact = Number.isFinite(info.duration) ? info.duration : null;
+  const durationSeconds = durationExact === null ? null : Math.round(durationExact);
   const sourceFormats = Array.isArray(info.formats) ? info.formats : [info];
 
   const byHeight = new Map();
@@ -523,35 +566,17 @@ async function listFormats(rawUrl) {
     }
   }
 
-  // Estimate bitrate per resolution when yt-dlp doesn't report one (HLS
-  // streams rarely declare per-format sizes). Values are kbps, conservative
-  // so the chip never under-sells the download.
-  function estimateBitrateKbps(height) {
-    if (height >= 2160) return 12000;
-    if (height >= 1440) return 8000;
-    if (height >= 1080) return 4500;
-    if (height >= 720) return 2500;
-    if (height >= 480) return 1000;
-    if (height >= 360) return 700;
-    if (height >= 240) return 400;
-    return 200; // 144p
-  }
-
   const videoFormats = [...byHeight.entries()]
     .sort((a, b) => b[0] - a[0])
     .slice(0, 6)
     .map(([height, format]) => {
-      const bitrateKbps =
-        Number(format.tbr) || estimateBitrateKbps(height);
       return {
         id: `video:${height}`,
         kind: 'video',
         label: `${height}p`,
         ext: 'mp4',
         height,
-        filesize: durationSeconds
-          ? Math.round((durationSeconds * bitrateKbps * 1000) / 8)
-          : null,
+        filesize: estimateVideoSizeBytes(durationExact, height, format),
       };
     });
 
@@ -565,8 +590,8 @@ async function listFormats(rawUrl) {
         label: `MP3 · ${bitrate} kbps`,
         ext: 'mp3',
         bitrate,
-        filesize: durationSeconds
-          ? Math.round((durationSeconds * bitrate * 1000) / 8)
+        filesize: durationExact
+          ? Math.round((durationExact * bitrate * 1000) / 8)
           : null,
       }))
     : [];

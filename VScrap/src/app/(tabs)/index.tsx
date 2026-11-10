@@ -47,6 +47,7 @@ export default function HomeRoute() {
   const validation = useMemo(() => (url.trim() ? validateUrl(url) : null), [url]);
   const shareLink = Boolean(validation?.valid && validation.share);
   const activeFormat = shareLink ? selectedFormat : null;
+  const bestVideoSize = formats.find((option) => option.kind === 'video')?.filesize;
 
   useEffect(() => {
     const trimmed = url.trim();
@@ -349,10 +350,11 @@ export default function HomeRoute() {
                 {formatsError}
               </Text>
             ) : formats.length > 0 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.formatChips}>
+              <View style={styles.formatOptions}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.formatChips}>
                 <Pressable
                   key="auto-best"
                   accessibilityRole="button"
@@ -376,6 +378,7 @@ export default function HomeRoute() {
                         : [styles.formatChipTextInactive, { color: themeColors.textMuted }],
                     ]}>
                     Auto (Best)
+                    {bestVideoSize ? ` · ~${formatBytes(bestVideoSize)}` : ''}
                   </Text>
                 </Pressable>
                 {formats.map((option) => {
@@ -404,11 +407,16 @@ export default function HomeRoute() {
                             : [styles.formatChipTextInactive, { color: themeColors.textMuted }],
                         ]}>
                         {option.label}
+                        {option.filesize ? ` · ~${formatBytes(option.filesize)}` : ''}
                       </Text>
                     </Pressable>
                   );
                 })}
-              </ScrollView>
+                </ScrollView>
+                <Text style={[styles.formatSizeHint, { color: themeColors.textDim }]}>
+                  Sizes are estimates; the exact total appears after the download.
+                </Text>
+              </View>
             ) : (
               <ScrollView
                 horizontal
@@ -670,6 +678,12 @@ const styles = StyleSheet.create({
   formatChips: {
     gap: 8,
     paddingRight: spacing.sm,
+  },
+  formatOptions: {
+    gap: 6,
+  },
+  formatSizeHint: {
+    fontSize: 10,
   },
   formatChip: {
     paddingHorizontal: 14,

@@ -144,14 +144,17 @@ async function startDownload(id: string): Promise<void> {
   const destination = new File(Paths.document, uniqueFileName(item.filename, defaultExt));
   const task = File.createDownloadTask(streamUrlFor(item.url, item.format), destination, {
     onProgress: (p) => {
-      set({ bytesWritten: p.bytesWritten });
-      // Share links stream chunked (no Content-Length), so totalBytes is often
-      // -1. Fall back to the size reported by /info (contentLength) so the
-      // progress bar still moves when we know the expected size.
-      const total = p.totalBytes && p.totalBytes > 0 ? p.totalBytes : item.size;
-      if (total && total > 0) {
-        set({ progress: Math.round((p.bytesWritten / total) * 100) });
-      }
+      const reportedTotal = p.totalBytes > 0 ? p.totalBytes : null;
+      // Transcoded streams have no Content-Length, so use the backend's
+      // estimate. Keep active transfers below 100%; completion sets 100%.
+      const total = reportedTotal ?? item.size;
+      set({
+        bytesWritten: p.bytesWritten,
+        ...(reportedTotal ? { size: reportedTotal, sizeEstimated: false } : {}),
+        ...(total && total > 0
+          ? { progress: Math.min(99, Math.floor((p.bytesWritten / total) * 100)) }
+          : {}),
+      });
     },
   });
   activeDownloads.set(id, task);
@@ -169,9 +172,10 @@ async function startDownload(id: string): Promise<void> {
     set({
       status: 'completed',
       progress: 100,
-      // The backend reports no size for HLS share links, so record the actual
-      // downloaded byte count tracked during the transfer.
-      size: useDownloadsStore.getState().items.find((i) => i.id === id)?.bytesWritten ?? item.size ?? null,
+      // Read final size from the saved file; native progress events can be
+      // throttled and may not report the final byte count.
+      size: result.size ?? useDownloadsStore.getState().items.find((i) => i.id === id)?.bytesWritten ?? item.size ?? null,
+      sizeEstimated: false,
       localUri: result.uri,
       completedAt: Date.now(),
     });
@@ -250,6 +254,7 @@ export const useDownloadsStore = createStore<{
     let info: {
       contentType: string;
       contentLength: number | null;
+      sizeEstimated?: boolean;
       mediaType: MediaKind;
       filename: string;
       durationSeconds: number | null;
@@ -258,6 +263,7 @@ export const useDownloadsStore = createStore<{
       info = await apiClient.post<{
         contentType: string;
         contentLength: number | null;
+        sizeEstimated?: boolean;
         mediaType: MediaKind;
         filename: string;
         durationSeconds: number | null;
@@ -279,6 +285,7 @@ export const useDownloadsStore = createStore<{
       contentType: info.contentType,
       mediaKind,
       size: info.contentLength,
+      sizeEstimated: info.sizeEstimated ?? false,
       durationSeconds: info.durationSeconds ?? null,
       status: 'analyzing',
     });
@@ -326,7 +333,8 @@ export const useDownloadsStore = createStore<{
                       ...i,
                       status: 'completed' as DownloadStatus,
                       progress: 100,
-                      size: current?.bytesWritten ?? i.size ?? null,
+                      size: result.size ?? current?.bytesWritten ?? i.size ?? null,
+                      sizeEstimated: false,
                       localUri: result.uri,
                       completedAt: Date.now(),
                     }

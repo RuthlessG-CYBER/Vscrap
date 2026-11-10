@@ -244,7 +244,7 @@ export function DownloadCard({ item }: { item: DownloadItem }) {
                 : isPaused
                   ? 'Transfer paused'
                   : item.size
-                    ? `${formatBytes(item.bytesWritten)} of ${formatBytes(item.size)}`
+                    ? `${formatBytes(item.bytesWritten)} of ${item.sizeEstimated ? '~' : ''}${formatBytes(item.size)}`
                     : formatBytes(item.bytesWritten)}
             </Text>
             {isDownloading || isPaused ? (

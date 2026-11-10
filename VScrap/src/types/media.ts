@@ -18,6 +18,8 @@ export interface DownloadItem {
   contentType: string;
   mediaKind: MediaKind;
   size: number | null;
+  /** True when size is estimated because the server transcodes/chunk-streams. */
+  sizeEstimated?: boolean;
   /** Duration in seconds, reported by the backend for share links. */
   durationSeconds: number | null;
   bytesWritten: number;
