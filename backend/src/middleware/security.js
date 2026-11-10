@@ -20,6 +20,7 @@ const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 
 function isAllowedOrigin(origin) {
   if (!origin) return true; // native apps and curl do not send an Origin header
+  if (config.allowedOrigins.includes('*')) return true;
   if (config.allowedOrigins.includes(origin)) return true;
   // Expo's web dev server runs on localhost with a random port.
   return !isProduction && LOCAL_ORIGIN.test(origin);

@@ -1,5 +1,6 @@
 const { spawn, execFileSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const axios = require('axios');
 const config = require('../config');
@@ -13,6 +14,33 @@ const PYTHON_BIN = process.env.YTDLP_PYTHON || path.join(BACKEND_ROOT, '.venv', 
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+let runtimeCookiesFile;
+
+/**
+ * yt-dlp writes updated cookies back to the supplied jar. Render Secret Files
+ * are read-only, so mirror them into a private, writable temp directory first.
+ */
+function getCookiesFile() {
+  const configuredPath = process.env.YTDLP_COOKIES_FILE;
+  if (!configuredPath || !fs.existsSync(configuredPath)) return null;
+
+  try {
+    const descriptor = fs.openSync(configuredPath, 'r+');
+    fs.closeSync(descriptor);
+    return configuredPath;
+  } catch {
+    if (!runtimeCookiesFile) {
+      const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vscrap-ytdlp-'));
+      runtimeCookiesFile = path.join(tempDirectory, 'cookies.txt');
+      fs.writeFileSync(runtimeCookiesFile, fs.readFileSync(configuredPath), {
+        flag: 'wx',
+        mode: 0o600,
+      });
+    }
+    return runtimeCookiesFile;
+  }
+}
 
 const SHARE_HOSTS = [
   { pattern: /^(?:www\.|m\.|music\.)?youtube\.com$/i, source: 'youtube' },
@@ -456,8 +484,8 @@ async function listFormats(rawUrl) {
     '20',
   ];
 
-  const cookiesFile = process.env.YTDLP_COOKIES_FILE;
-  if (cookiesFile && fs.existsSync(cookiesFile)) {
+  const cookiesFile = getCookiesFile();
+  if (cookiesFile) {
     args.push('--cookies', cookiesFile);
   }
   args.push(targetUrl);
@@ -590,8 +618,8 @@ async function prepareShareStream(rawUrl, format) {
     formatSelector(selection),
   ];
 
-  const cookiesFile = process.env.YTDLP_COOKIES_FILE;
-  if (cookiesFile && fs.existsSync(cookiesFile)) {
+  const cookiesFile = getCookiesFile();
+  if (cookiesFile) {
     args.push('--cookies', cookiesFile);
   }
   args.push(targetUrl);

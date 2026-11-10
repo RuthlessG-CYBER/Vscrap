@@ -95,6 +95,9 @@ Secret File named `cookies.txt` containing the Netscape cookie jar and set:
 YTDLP_COOKIES_FILE=/etc/secrets/cookies.txt
 ```
 
+The backend copies Render's read-only secret file into a private writable
+temporary location for `yt-dlp`, which updates its cookie jar during use.
+
 Use the service's HTTPS URL as the frontend backend address. For mobile builds,
 set `EXPO_PUBLIC_API_URL` to that URL when building the app. If using the app
 in a web browser, set `ALLOWED_ORIGINS` on the backend to the web app's origin.

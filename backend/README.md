@@ -125,7 +125,9 @@ YTDLP_COOKIES_FILE=/absolute/path/to/cookies.txt
 
 Export Instagram and Facebook cookies from a browser where you are signed in,
 combine them into one Netscape-format file, and point `YTDLP_COOKIES_FILE` at
-that file. The current local cookie jar contains Instagram and YouTube entries;
+that file. If the configured file is read-only, the backend makes a private,
+writable temporary copy because `yt-dlp` updates its cookie jar. The current
+local cookie jar contains Instagram and YouTube entries;
 it needs Facebook entries added before Facebook-only/private posts can use your
 Facebook session. Keep the cookie jar out of source control and restrict its
 file permissions (`chmod 600 cookies.txt`). Do not put raw session IDs in app
