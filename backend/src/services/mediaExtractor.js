@@ -231,7 +231,15 @@ function runYtDlp(args, { timeoutMs = 30000 } = {}) {
         resolve({ stdout, stderr });
         return;
       }
-      if (config.nodeEnv !== 'production' && stderr) {
+      if (config.nodeEnv === 'production') {
+        let sourceHost = 'unknown-source';
+        try {
+          sourceHost = new URL(args[args.length - 1]).hostname;
+        } catch {
+          // Keep the production diagnostic free of the submitted URL.
+        }
+        console.warn(`[extractor] yt-dlp failed for ${sourceHost} (${classifyExtractorFailure(stderr)})`);
+      } else if (stderr) {
         console.warn('[extractor] yt-dlp failed:', stderr.trim().split('\n').slice(-4).join(' | '));
       }
       reject(extractorFailure(stderr));
@@ -239,33 +247,37 @@ function runYtDlp(args, { timeoutMs = 30000 } = {}) {
   });
 }
 
-function extractorFailure(stderr) {
+function classifyExtractorFailure(stderr) {
   const text = String(stderr || '').toLowerCase();
-  let message = 'Could not read that link. It may be private, region-locked, or no longer available.';
-
   if (text.includes('private video') || text.includes('private post') || text.includes('is private')) {
-    message = 'That post is private, so it cannot be downloaded.';
-  } else if (
-    text.includes('login required') ||
-    text.includes('sign in') ||
-    text.includes('cookies') ||
-    text.includes('rate-limit') ||
-    text.includes('rate limit')
-  ) {
-    message =
-      'This post needs a logged-in session. Try a public post, or configure cookies on the backend.';
-  } else if (text.includes('not available in your country') || text.includes('geo')) {
-    message = 'That video is not available in this region.';
-  } else if (text.includes('unsupported url')) {
-    message = 'That link is not supported. Paste a YouTube, Instagram, or Facebook post link.';
-  } else if (text.includes('video unavailable') || text.includes('has been removed')) {
-    message = 'That video is unavailable or has been removed.';
-  } else if (text.includes('age-restricted') || text.includes('age restricted')) {
-    message = 'That video is age-restricted and needs a logged-in session.';
+    return 'private-post';
   }
+  if (/http error 429|status code 429|too many requests|rate[- ]limit/.test(text)) return 'rate-limited';
+  if (/login required|sign in|cookies|age.restricted/.test(text)) return 'login-required';
+  if (/not available in your country|geo.?blocked|geo restriction/.test(text)) return 'region-blocked';
+  if (/unsupported url/.test(text)) return 'unsupported-url';
+  if (/video unavailable|has been removed|http error 404|status code 404/.test(text)) return 'not-found';
+  if (/http error 403|status code 403|forbidden/.test(text)) return 'access-denied';
+  if (/timed out|timeout|socket hang up/.test(text)) return 'upstream-timeout';
+  return 'unknown';
+}
 
-  const err = new Error(message);
-  err.status = 422;
+function extractorFailure(stderr) {
+  const kind = classifyExtractorFailure(stderr);
+  const messages = {
+    'private-post': 'That post is private, so it cannot be downloaded.',
+    'rate-limited': 'The platform is temporarily rate-limiting downloads. Wait a few minutes and try again.',
+    'login-required': 'This post needs a logged-in session. Check that the backend cookies are current and include this platform.',
+    'region-blocked': 'That video is not available in the backend’s region.',
+    'unsupported-url': 'That link is not supported. Paste a YouTube, Instagram, or Facebook post link.',
+    'not-found': 'That video is unavailable or has been removed.',
+    'access-denied': 'The platform refused access to that post. Check the backend session cookies or try a public post.',
+    'upstream-timeout': 'The platform took too long to respond. Try again shortly.',
+    unknown: 'Could not read that link. It may be private, region-locked, or no longer available.',
+  };
+
+  const err = new Error(messages[kind]);
+  err.status = kind === 'rate-limited' ? 429 : 422;
   return err;
 }
 
