@@ -146,7 +146,10 @@ export function DownloadCard({ item }: { item: DownloadItem }) {
   const isPaused = item.status === 'paused';
   const isCompleted = item.status === 'completed';
   const isFailed = item.status === 'failed';
-  const showProgress = isDownloading || isPaused || item.status === 'analyzing';
+  const isAnalyzing = item.status === 'analyzing';
+  const isQueued = item.status === 'queued';
+  const hasExpectedSize = typeof item.size === 'number' && item.size > 0;
+  const showProgress = isDownloading || isPaused || isAnalyzing || isQueued;
 
   const ext = (item.filename.split('.').pop() || 'media').toUpperCase();
   const platform = getPlatformInfo(item.url, item.mediaKind);
@@ -239,15 +242,19 @@ export function DownloadCard({ item }: { item: DownloadItem }) {
         <View style={styles.progressContainer}>
           <View style={styles.progressMetrics}>
             <Text style={[styles.progressLabel, { color: themeColors.textMuted }]}>
-              {item.status === 'analyzing'
+              {isQueued
+                ? 'Waiting in queue…'
+                : isAnalyzing
                 ? 'Analyzing media source…'
                 : isPaused
                   ? 'Transfer paused'
-                  : item.size
+                  : hasExpectedSize
                     ? `${formatBytes(item.bytesWritten)} of ${item.sizeEstimated ? '~' : ''}${formatBytes(item.size)}`
-                    : formatBytes(item.bytesWritten)}
+                    : item.bytesWritten > 0
+                      ? `${formatBytes(item.bytesWritten)} received`
+                      : 'Starting transfer…'}
             </Text>
-            {isDownloading || isPaused ? (
+            {(isDownloading || isPaused) && hasExpectedSize ? (
               <Text style={[styles.progressPct, { color: isPaused ? themeColors.warning : themeColors.text }]}>
                 {Math.round(item.progress)}%
               </Text>
@@ -258,7 +265,7 @@ export function DownloadCard({ item }: { item: DownloadItem }) {
             progress={item.progress}
             color={isPaused ? 'warning' : 'primary'}
             height={6}
-            indeterminate={item.status === 'analyzing' || (isDownloading && item.progress === 0)}
+            indeterminate={isQueued || isAnalyzing || (isDownloading && (!hasExpectedSize || item.progress === 0))}
           />
         </View>
       )}

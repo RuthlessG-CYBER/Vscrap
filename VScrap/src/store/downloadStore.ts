@@ -152,7 +152,7 @@ async function startDownload(id: string): Promise<void> {
         bytesWritten: p.bytesWritten,
         ...(reportedTotal ? { size: reportedTotal, sizeEstimated: false } : {}),
         ...(total && total > 0
-          ? { progress: Math.min(99, Math.floor((p.bytesWritten / total) * 100)) }
+          ? { progress: Math.min(99, (p.bytesWritten / total) * 100) }
           : {}),
       });
     },
