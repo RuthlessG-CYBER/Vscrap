@@ -91,4 +91,6 @@ export const apiClient = {
     request<T>(path, { ...options, method: 'GET' }),
   post: <T = unknown>(path: string, body?: unknown, options?: FetchOptions) =>
     request<T>(path, { ...options, method: 'POST', body }),
+  delete: <T = unknown>(path: string, options?: FetchOptions) =>
+    request<T>(path, { ...options, method: 'DELETE' }),
 };

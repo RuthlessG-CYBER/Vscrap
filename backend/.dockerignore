@@ -5,6 +5,9 @@ node_modules/
 cookies*.txt
 *.cookies
 *.cookie
+downloads/
+**/__pycache__/
+*.py[cod]
 .git/
 .gitignore
 pnpm-debug.log*

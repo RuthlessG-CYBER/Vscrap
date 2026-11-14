@@ -17,6 +17,9 @@ import { haptics } from '@/utils/haptics';
 
 /** In-flight download tasks keyed by item id. Lost on app restart (acceptable). */
 const activeDownloads = new Map<string, DownloadTask>();
+const activeJobs = new Map<string, string>();
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function uniqueFileName(original: string, defaultExt: string = 'mp4'): string {
   const safe = original.replace(/[^a-zA-Z0-9.\-_]/g, '_') || 'download';
@@ -27,11 +30,10 @@ function uniqueFileName(original: string, defaultExt: string = 'mp4'): string {
   return `vscrap-${Date.now()}-${safe}${ext}`;
 }
 
-function streamUrlFor(targetUrl: string, format?: string | null): string {
+function jobFileUrl(jobId: string): string {
   const base = getApiUrl();
   if (!base) throw new Error('Backend URL is not set.');
-  const formatQuery = format ? `&format=${encodeURIComponent(format)}` : '';
-  return `${base}/api/download/stream?url=${encodeURIComponent(targetUrl)}${formatQuery}`;
+  return base + '/api/download/jobs/' + encodeURIComponent(jobId) + '/file';
 }
 
 /** Selector: count of items that are not in a terminal state. */
@@ -134,47 +136,99 @@ async function startDownload(id: string): Promise<void> {
       ),
     }));
 
-  const state = useDownloadsStore.getState();
-  const item = state.items.find((i) => i.id === id);
+  const item = useDownloadsStore.getState().items.find((i) => i.id === id);
   if (!item) return;
 
   set({ status: 'downloading', error: null, progress: 0, bytesWritten: 0 });
-
-  const defaultExt = item.mediaKind === 'audio' ? 'mp3' : item.mediaKind === 'video' ? 'mp4' : 'bin';
-  const destination = new File(Paths.document, uniqueFileName(item.filename, defaultExt));
-  const task = File.createDownloadTask(streamUrlFor(item.url, item.format), destination, {
-    onProgress: (p) => {
-      const reportedTotal = p.totalBytes > 0 ? p.totalBytes : null;
-      // Transcoded streams have no Content-Length, so use the backend's
-      // estimate. Keep active transfers below 100%; completion sets 100%.
-      const total = reportedTotal ?? item.size;
-      set({
-        bytesWritten: p.bytesWritten,
-        ...(reportedTotal ? { size: reportedTotal, sizeEstimated: false } : {}),
-        ...(total && total > 0
-          ? { progress: Math.min(99, (p.bytesWritten / total) * 100) }
-          : {}),
-      });
-    },
-  });
-  activeDownloads.set(id, task);
+  let jobId: string | null = null;
 
   try {
-    // downloadAsync() resolves with the File on success, null when paused,
-    // and rejects on error/cancellation.
+    const started = await apiClient.post<{ jobId: string }>(
+      '/api/download/jobs',
+      { url: item.url, format: item.format },
+      { timeoutMs: 30000 }
+    );
+    jobId = started.jobId;
+    activeJobs.set(id, jobId);
+
+    // Show yt-dlp's real server-side progress while the file is prepared.
+    while (true) {
+      const current = useDownloadsStore.getState().items.find((i) => i.id === id);
+      if (!current || current.status === 'cancelled') {
+        await apiClient.delete('/api/download/jobs/' + encodeURIComponent(jobId)).catch(() => {});
+        activeJobs.delete(id);
+        return;
+      }
+
+      const job = await apiClient.get<{
+        status: 'queued' | 'processing' | 'completed' | 'failed';
+        progress: number;
+        bytesDownloaded: number;
+        totalBytes: number | null;
+        error?: string | null;
+      }>('/api/download/jobs/' + encodeURIComponent(jobId), { timeoutMs: 10000 });
+
+      if (job.status === 'failed') {
+        throw new Error(job.error || 'The backend could not prepare this download.');
+      }
+      if (current.status !== 'paused') {
+        const knownTotal = job.totalBytes ?? item.size;
+        set({
+          progress: Math.min(84, Math.max(0, job.progress * 0.84)),
+          bytesWritten: job.bytesDownloaded,
+          ...(job.totalBytes ? { size: job.totalBytes, sizeEstimated: false } : {}),
+          ...(knownTotal && !item.size ? { size: knownTotal, sizeEstimated: true } : {}),
+        });
+      }
+      if (job.status === 'completed') break;
+      await wait(1000);
+    }
+
+    const current = useDownloadsStore.getState().items.find((i) => i.id === id);
+    if (!current || current.status === 'cancelled') return;
+    while (useDownloadsStore.getState().items.find((i) => i.id === id)?.status === 'paused') {
+      await wait(500);
+    }
+    if (useDownloadsStore.getState().items.find((i) => i.id === id)?.status === 'cancelled') {
+      return;
+    }
+
+    const defaultExt =
+      item.mediaKind === 'audio' ? 'mp3' : item.mediaKind === 'video' ? 'mp4' : 'bin';
+    const destination = new File(
+      Paths.document,
+      uniqueFileName(item.filename, defaultExt)
+    );
+    const task = File.createDownloadTask(jobFileUrl(jobId), destination, {
+      onProgress: (p) => {
+        const reportedTotal = p.totalBytes > 0 ? p.totalBytes : null;
+        const total = reportedTotal ?? item.size;
+        const transferProgress =
+          total && total > 0 ? Math.min(99, (p.bytesWritten / total) * 100) : 0;
+        set({
+          progress: 84 + transferProgress * 0.15,
+          bytesWritten: p.bytesWritten,
+          ...(reportedTotal ? { size: reportedTotal, sizeEstimated: false } : {}),
+        });
+      },
+    });
+    activeDownloads.set(id, task);
+
     const result = await task.downloadAsync();
     activeDownloads.delete(id);
+    activeJobs.delete(id);
     if (result === null) {
-      // Paused by the user — leave status as 'paused'.
       set({ status: 'paused' });
       return;
     }
     set({
       status: 'completed',
       progress: 100,
-      // Read final size from the saved file; native progress events can be
-      // throttled and may not report the final byte count.
-      size: result.size ?? useDownloadsStore.getState().items.find((i) => i.id === id)?.bytesWritten ?? item.size ?? null,
+      size:
+        result.size ??
+        useDownloadsStore.getState().items.find((i) => i.id === id)?.bytesWritten ??
+        item.size ??
+        null,
       sizeEstimated: false,
       localUri: result.uri,
       completedAt: Date.now(),
@@ -185,6 +239,10 @@ async function startDownload(id: string): Promise<void> {
     haptics.success();
   } catch (error) {
     activeDownloads.delete(id);
+    activeJobs.delete(id);
+    if (jobId) {
+      void apiClient.delete('/api/download/jobs/' + encodeURIComponent(jobId)).catch(() => {});
+    }
     const current = useDownloadsStore.getState().items.find((i) => i.id === id);
     if (current && (current.status === 'cancelled' || current.status === 'paused')) {
       return;
@@ -291,12 +349,12 @@ export const useDownloadsStore = createStore<{
     });
 
     useDownloadsStore.setState((state) => ({ items: [...state.items, item] }));
-    await startDownload(item.id);
+    void startDownload(item.id);
   },
   pause: (id: string) => {
     const task = activeDownloads.get(id);
-    if (task) {
-      void task.pause();
+    if (task) void task.pause();
+    if (task || activeJobs.has(id)) {
       useDownloadsStore.setState((state) => ({
         items: state.items.map((i) =>
           i.id === id ? { ...i, status: 'paused' as DownloadStatus } : i
@@ -307,6 +365,14 @@ export const useDownloadsStore = createStore<{
   resume: (id: string) => {
     const task = activeDownloads.get(id);
     const item = useDownloadsStore.getState().items.find((i) => i.id === id);
+    if (activeJobs.has(id) && !task && item) {
+      useDownloadsStore.setState((state) => ({
+        items: state.items.map((i) =>
+          i.id === id ? { ...i, status: 'downloading' as DownloadStatus } : i
+        ),
+      }));
+      return;
+    }
     if (task && item) {
       useDownloadsStore.setState((state) => ({
         items: state.items.map((i) =>
@@ -365,9 +431,12 @@ export const useDownloadsStore = createStore<{
   },
   cancel: (id: string) => {
     const task = activeDownloads.get(id);
-    if (task) {
-      void task.cancel();
-      activeDownloads.delete(id);
+    if (task) void task.cancel();
+    activeDownloads.delete(id);
+    const jobId = activeJobs.get(id);
+    if (jobId) {
+      void apiClient.delete('/api/download/jobs/' + encodeURIComponent(jobId)).catch(() => {});
+      activeJobs.delete(id);
     }
     useDownloadsStore.setState((state) => ({
       items: state.items.map((i) =>
@@ -383,6 +452,11 @@ export const useDownloadsStore = createStore<{
     if (!item) return;
     haptics.tap();
     activeDownloads.delete(id);
+    const jobId = activeJobs.get(id);
+    if (jobId) {
+      void apiClient.delete('/api/download/jobs/' + encodeURIComponent(jobId)).catch(() => {});
+      activeJobs.delete(id);
+    }
     useDownloadsStore.setState((state) => ({
       items: state.items.map((i) =>
         i.id === id
@@ -406,6 +480,9 @@ export const useDownloadsStore = createStore<{
   remove: async (id: string) => {
     void activeDownloads.get(id)?.cancel();
     activeDownloads.delete(id);
+    const jobId = activeJobs.get(id);
+    if (jobId) void apiClient.delete('/api/download/jobs/' + encodeURIComponent(jobId)).catch(() => {});
+    activeJobs.delete(id);
     // Note: SDK 58 expo-file-system exposes no typed delete API, so the
     // underlying file is left in place; only the library entry is removed.
     useDownloadsStore.setState((state) => ({
@@ -422,6 +499,9 @@ export const useDownloadsStore = createStore<{
       ) {
         void activeDownloads.get(item.id)?.cancel();
         activeDownloads.delete(item.id);
+        const jobId = activeJobs.get(item.id);
+        if (jobId) void apiClient.delete('/api/download/jobs/' + encodeURIComponent(jobId)).catch(() => {});
+        activeJobs.delete(item.id);
       }
     }
     useDownloadsStore.setState((state) => ({
@@ -434,10 +514,12 @@ export const useDownloadsStore = createStore<{
     }));
   },
   deleteAll: async () => {
-    for (const task of activeDownloads.values()) {
-      void task.cancel();
+    for (const task of activeDownloads.values()) void task.cancel();
+    for (const jobId of activeJobs.values()) {
+      void apiClient.delete('/api/download/jobs/' + encodeURIComponent(jobId)).catch(() => {});
     }
     activeDownloads.clear();
+    activeJobs.clear();
     useDownloadsStore.setState({ items: [] });
   },
   share: async (id: string) => {

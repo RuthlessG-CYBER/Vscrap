@@ -1,0 +1,1 @@
+"""VScrap backend application package."""

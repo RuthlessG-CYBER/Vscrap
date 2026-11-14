@@ -14,6 +14,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { GradientButton } from '@/components/GradientButton';
 import { LibraryCard } from '@/components/LibraryCard';
+import { ProgressBar } from '@/components/ProgressBar';
 import { Screen } from '@/components/Screen';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { TopAppBar } from '@/components/TopAppBar';
@@ -254,6 +255,40 @@ export default function HomeRoute() {
           </View>
         </View>
 
+        <View style={styles.supportedPlatforms}>
+          <View
+            accessibilityLabel="YouTube video downloads supported"
+            style={[
+              styles.platformCard,
+              { backgroundColor: themeColors.surface, borderColor: themeColors.border },
+            ]}>
+            <View style={[styles.platformIcon, { backgroundColor: '#EF44441A' }]}>
+              <Ionicons name="logo-youtube" size={19} color="#EF4444" />
+            </View>
+            <View style={styles.platformCopy}>
+              <Text style={[styles.platformTitle, { color: themeColors.text }]}>YouTube</Text>
+              <Text style={[styles.platformCaption, { color: themeColors.textMuted }]}>Videos supported</Text>
+            </View>
+            <Ionicons name="checkmark-circle" size={16} color={themeColors.success} />
+          </View>
+
+          <View
+            accessibilityLabel="Facebook video downloads supported"
+            style={[
+              styles.platformCard,
+              { backgroundColor: themeColors.surface, borderColor: themeColors.border },
+            ]}>
+            <View style={[styles.platformIcon, { backgroundColor: '#1877F21A' }]}>
+              <Ionicons name="logo-facebook" size={19} color="#1877F2" />
+            </View>
+            <View style={styles.platformCopy}>
+              <Text style={[styles.platformTitle, { color: themeColors.text }]}>Facebook</Text>
+              <Text style={[styles.platformCaption, { color: themeColors.textMuted }]}>Videos supported</Text>
+            </View>
+            <Ionicons name="checkmark-circle" size={16} color={themeColors.success} />
+          </View>
+        </View>
+
         <View style={[styles.inputCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
           <View style={styles.urlHeader}>
             <Text style={[styles.urlLabel, { color: themeColors.textMuted }]}>Media URL</Text>
@@ -335,17 +370,34 @@ export default function HomeRoute() {
             </Text>
           </View>
 
+          {(formatsLoading || formatsError || formats.length > 0) ? (
           <View style={styles.formatBlock}>
             <View style={styles.labelRow}>
               <Text style={[styles.formatLabel, { color: themeColors.textMuted }]}>
                 Output format & fidelity
               </Text>
-              {formatsLoading && (
-                <ActivityIndicator size="small" color={themeColors.primary} />
-              )}
             </View>
 
-            {formatsError ? (
+            {formatsLoading ? (
+              <View
+                style={[
+                  styles.formatLoadingCard,
+                  { backgroundColor: themeColors.surfaceAlt, borderColor: themeColors.border },
+                ]}>
+                <View style={styles.formatLoadingText}>
+                  <ActivityIndicator size="small" color={themeColors.primary} />
+                  <View style={styles.formatLoadingCopy}>
+                    <Text style={[styles.formatLoadingTitle, { color: themeColors.text }]}>
+                      Checking available formats
+                    </Text>
+                    <Text style={[styles.formatLoadingHint, { color: themeColors.textMuted }]}>
+                      Reading quality and file size from the source
+                    </Text>
+                  </View>
+                </View>
+                <ProgressBar progress={0} indeterminate height={4} />
+              </View>
+            ) : formatsError ? (
               <Text style={[styles.formatError, { color: themeColors.dangerLight }]}>
                 {formatsError}
               </Text>
@@ -417,29 +469,9 @@ export default function HomeRoute() {
                   Sizes are estimates; the exact total appears after the download.
                 </Text>
               </View>
-            ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.formatChips}>
-              <View style={[styles.formatChip, { backgroundColor: themeColors.primary, borderColor: themeColors.primary }]}>
-                  <Text style={[styles.formatChipText, { color: themeColors.primaryText }]}>
-                    Auto (Best)
-                  </Text>
-                </View>
-                <View style={[styles.formatChip, { backgroundColor: themeColors.surfaceAlt, borderColor: themeColors.border }]}>
-                  <Text style={[styles.formatChipText, { color: themeColors.textMuted }]}>
-                    1080p Video
-                  </Text>
-                </View>
-                <View style={[styles.formatChip, { backgroundColor: themeColors.surfaceAlt, borderColor: themeColors.border }]}>
-                  <Text style={[styles.formatChipText, { color: themeColors.textMuted }]}>
-                    MP3 Audio
-                  </Text>
-                </View>
-              </ScrollView>
-            )}
+            ) : null}
           </View>
+          ) : null}
 
           <GradientButton
             title="Download Resource"
@@ -447,6 +479,14 @@ export default function HomeRoute() {
             onPress={() => void startDownload()}
             loading={submitting}
           />
+          {submitting ? (
+            <View style={styles.submitProgress}>
+              <Text style={[styles.submitProgressText, { color: themeColors.textMuted }]}>
+                Preparing your download…
+              </Text>
+              <ProgressBar progress={0} indeterminate height={4} />
+            </View>
+          ) : null}
 
           <View style={styles.footnoteRow}>
             <Ionicons
@@ -598,6 +638,39 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.1,
   },
+  supportedPlatforms: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  platformCard: {
+    flex: 1,
+    minHeight: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.md,
+  },
+  platformIcon: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+  },
+  platformCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  platformTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  platformCaption: {
+    fontSize: 9,
+  },
   inputCard: {
     gap: spacing.md,
     padding: spacing.lg,
@@ -665,6 +738,36 @@ const styles = StyleSheet.create({
   },
   formatBlock: {
     gap: spacing.xs + 2,
+  },
+  formatLoadingCard: {
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  formatLoadingText: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  formatLoadingCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  formatLoadingTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  formatLoadingHint: {
+    fontSize: 10,
+  },
+  submitProgress: {
+    gap: spacing.xs,
+    marginTop: -spacing.xs,
+  },
+  submitProgressText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   labelRow: {
     flexDirection: 'row',

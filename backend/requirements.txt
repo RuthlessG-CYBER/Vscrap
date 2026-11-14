@@ -1,5 +1,4 @@
-# Share-link extraction (YouTube / Instagram).
-# Install into backend/.venv so src/services/mediaExtractor.js can find both
-# binaries without touching the system Python.
-yt-dlp>=2026.10.26
-imageio-ffmpeg>=0.8.1
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+yt-dlp[default]>=2024.12.23
+python-dotenv>=1,<2

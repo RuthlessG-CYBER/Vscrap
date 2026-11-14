@@ -50,7 +50,9 @@
       ],
       "expo-file-system",
       "expo-media-library",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
