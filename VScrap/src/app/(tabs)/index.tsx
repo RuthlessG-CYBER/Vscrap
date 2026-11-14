@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -8,29 +8,26 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
-import { useRouter } from 'expo-router';
-import { GradientButton } from '@/components/GradientButton';
-import { LibraryCard } from '@/components/LibraryCard';
-import { ProgressBar } from '@/components/ProgressBar';
-import { Screen } from '@/components/Screen';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { TopAppBar } from '@/components/TopAppBar';
-import { apiClient, errorMessage } from '@/services/apiClient';
-import { useDownloadsStore } from '@/store/downloadStore';
-import { radius, spacing, type } from '@/theme';
-import type { MediaFormatOption } from '@/types/media';
-import { formatBytes } from '@/utils/format';
-import { haptics } from '@/utils/haptics';
-import {
-  isShareLink,
-  validateUrl,
-} from '@/utils/urlUtils';
-import { useTheme } from '@/context/ThemeContext';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import { useRouter } from "expo-router";
+import { GradientButton } from "@/components/GradientButton";
+import { LibraryCard } from "@/components/LibraryCard";
+import { ProgressBar } from "@/components/ProgressBar";
+import { Screen } from "@/components/Screen";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { TopAppBar } from "@/components/TopAppBar";
+import { apiClient, errorMessage } from "@/services/apiClient";
+import { useDownloadsStore } from "@/store/downloadStore";
+import { radius, spacing, type } from "@/theme";
+import type { MediaFormatOption } from "@/types/media";
+import { formatBytes } from "@/utils/format";
+import { haptics } from "@/utils/haptics";
+import { isShareLink, validateUrl } from "@/utils/urlUtils";
+import { useTheme } from "@/context/ThemeContext";
 
-const APP_ICON = require('../../../assets/images/icon.png');
+const APP_ICON = require("../../../assets/images/icon.png");
 
 export default function HomeRoute() {
   const router = useRouter();
@@ -38,17 +35,22 @@ export default function HomeRoute() {
   const enqueue = useDownloadsStore((state) => state.enqueue);
   const { themeColors } = useTheme();
 
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formats, setFormats] = useState<MediaFormatOption[]>([]);
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [formatsLoading, setFormatsLoading] = useState(false);
   const [formatsError, setFormatsError] = useState<string | null>(null);
 
-  const validation = useMemo(() => (url.trim() ? validateUrl(url) : null), [url]);
+  const validation = useMemo(
+    () => (url.trim() ? validateUrl(url) : null),
+    [url],
+  );
   const shareLink = Boolean(validation?.valid && validation.share);
   const activeFormat = shareLink ? selectedFormat : null;
-  const bestVideoSize = formats.find((option) => option.kind === 'video')?.filesize;
+  const bestVideoSize = formats.find(
+    (option) => option.kind === "video",
+  )?.filesize;
 
   useEffect(() => {
     const trimmed = url.trim();
@@ -68,18 +70,16 @@ export default function HomeRoute() {
 
       void (async () => {
         try {
-          const result = await apiClient.post<{ formats?: MediaFormatOption[] }>(
-            '/api/download/formats',
-            { url: trimmed },
-            { timeoutMs: 60000 }
-          );
+          const result = await apiClient.post<{
+            formats?: MediaFormatOption[];
+          }>("/api/download/formats", { url: trimmed }, { timeoutMs: 60000 });
           if (cancelled) return;
           const options = Array.isArray(result.formats) ? result.formats : [];
           setFormats(options);
           setSelectedFormat((current) =>
             current && options.some((entry) => entry.id === current)
               ? current
-              : options[0]?.id ?? null
+              : (options[0]?.id ?? null),
           );
         } catch (error) {
           if (cancelled) return;
@@ -101,27 +101,32 @@ export default function HomeRoute() {
   const completed = useMemo(
     () =>
       items
-        .filter((item) => item.status === 'completed')
-        .sort((a, b) => (b.completedAt || b.createdAt) - (a.completedAt || b.createdAt)),
-    [items]
+        .filter((item) => item.status === "completed")
+        .sort(
+          (a, b) =>
+            (b.completedAt || b.createdAt) - (a.completedAt || b.createdAt),
+        ),
+    [items],
   );
   const activeCount = useMemo(
     () =>
       items.filter(
         (item) =>
-          item.status === 'queued' || item.status === 'analyzing' || item.status === 'downloading'
+          item.status === "queued" ||
+          item.status === "analyzing" ||
+          item.status === "downloading",
       ).length,
-    [items]
+    [items],
   );
   const totalBytes = useMemo(
     () => completed.reduce((total, item) => total + (item.size || 0), 0),
-    [completed]
+    [completed],
   );
 
   const storageParts = useMemo(() => {
     const formatted = formatBytes(totalBytes);
-    const parts = formatted.split(' ');
-    return { number: parts[0] ?? '0', unit: parts[1] ?? 'B' };
+    const parts = formatted.split(" ");
+    return { number: parts[0] ?? "0", unit: parts[1] ?? "B" };
   }, [totalBytes]);
 
   const recent = completed.slice(0, 3);
@@ -130,14 +135,17 @@ export default function HomeRoute() {
     try {
       const text = await Clipboard.getStringAsync();
       if (!text?.trim()) {
-        Alert.alert('Clipboard is empty', 'Copy a media link first, then try again.');
+        Alert.alert(
+          "Clipboard is empty",
+          "Copy a media link first, then try again.",
+        );
         return;
       }
       haptics.tap();
       setUrl(text.trim());
     } catch (error) {
       haptics.error();
-      Alert.alert('Could not paste', errorMessage(error));
+      Alert.alert("Could not paste", errorMessage(error));
     }
   };
 
@@ -146,7 +154,7 @@ export default function HomeRoute() {
     const result = validateUrl(trimmed);
     if (!result.valid) {
       haptics.error();
-      Alert.alert('Check the link', result.message);
+      Alert.alert("Check the link", result.message);
       return;
     }
 
@@ -154,11 +162,11 @@ export default function HomeRoute() {
     try {
       await enqueue(trimmed, activeFormat);
       haptics.success();
-      setUrl('');
-      router.navigate('/queue');
+      setUrl("");
+      router.navigate("/queue");
     } catch (error) {
       haptics.error();
-      Alert.alert('Could not start the download', errorMessage(error));
+      Alert.alert("Could not start the download", errorMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -170,24 +178,33 @@ export default function HomeRoute() {
         title="VScrap"
         subtitle="Media Downloader"
         imageSource={APP_ICON}
-        badge="2.0"
+        badge="1.0"
         rightAction={<ThemeToggle />}
       />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentInsetAdjustmentBehavior="never">
+        contentInsetAdjustmentBehavior="never"
+      >
         <View style={styles.heroSection}>
           <View style={styles.heroTitleRow}>
-            <Text style={[styles.heroTitle, { color: themeColors.text }]}>Download media</Text>
-            <View style={[styles.engineBadge, { backgroundColor: themeColors.surfaceAlt }]}>
-              <Ionicons
-                name="flash"
-                size={11}
-                color={themeColors.textMuted}
-              />
-              <Text style={[styles.engineBadgeText, { color: themeColors.textMuted }]}>
+            <Text style={[styles.heroTitle, { color: themeColors.text }]}>
+              Download media
+            </Text>
+            <View
+              style={[
+                styles.engineBadge,
+                { backgroundColor: themeColors.surfaceAlt },
+              ]}
+            >
+              <Ionicons name="flash" size={11} color={themeColors.textMuted} />
+              <Text
+                style={[
+                  styles.engineBadgeText,
+                  { color: themeColors.textMuted },
+                ]}
+              >
                 Lossless engine
               </Text>
             </View>
@@ -198,9 +215,21 @@ export default function HomeRoute() {
         </View>
 
         <View style={styles.statsRow}>
-          <View style={[styles.statCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+          <View
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: themeColors.surface,
+                borderColor: themeColors.border,
+              },
+            ]}
+          >
             <View style={styles.statTop}>
-              <Text style={[styles.statLabel, { color: themeColors.textMuted }]}>Active</Text>
+              <Text
+                style={[styles.statLabel, { color: themeColors.textMuted }]}
+              >
+                Active
+              </Text>
               <Ionicons
                 name="sync-outline"
                 size={15}
@@ -210,14 +239,28 @@ export default function HomeRoute() {
             <Text style={[styles.statValue, { color: themeColors.text }]}>
               {activeCount}
             </Text>
-            <Text style={[styles.statSublabel, { color: themeColors.textMuted }]}>
+            <Text
+              style={[styles.statSublabel, { color: themeColors.textMuted }]}
+            >
               Tasks running
             </Text>
           </View>
 
-          <View style={[styles.statCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+          <View
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: themeColors.surface,
+                borderColor: themeColors.border,
+              },
+            ]}
+          >
             <View style={styles.statTop}>
-              <Text style={[styles.statLabel, { color: themeColors.textMuted }]}>Saved</Text>
+              <Text
+                style={[styles.statLabel, { color: themeColors.textMuted }]}
+              >
+                Saved
+              </Text>
               <Ionicons
                 name="folder-outline"
                 size={15}
@@ -227,14 +270,28 @@ export default function HomeRoute() {
             <Text style={[styles.statValue, { color: themeColors.text }]}>
               {completed.length}
             </Text>
-            <Text style={[styles.statSublabel, { color: themeColors.textMuted }]}>
+            <Text
+              style={[styles.statSublabel, { color: themeColors.textMuted }]}
+            >
               Media assets
             </Text>
           </View>
 
-          <View style={[styles.statCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+          <View
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: themeColors.surface,
+                borderColor: themeColors.border,
+              },
+            ]}
+          >
             <View style={styles.statTop}>
-              <Text style={[styles.statLabel, { color: themeColors.textMuted }]}>Storage</Text>
+              <Text
+                style={[styles.statLabel, { color: themeColors.textMuted }]}
+              >
+                Storage
+              </Text>
               <Ionicons
                 name="pie-chart-outline"
                 size={15}
@@ -249,56 +306,121 @@ export default function HomeRoute() {
                 {storageParts.unit}
               </Text>
             </View>
-            <Text style={[styles.statSublabel, { color: themeColors.textMuted }]}>
+            <Text
+              style={[styles.statSublabel, { color: themeColors.textMuted }]}
+            >
               Internal space
             </Text>
           </View>
         </View>
 
         <View style={styles.supportedPlatforms}>
+          {/* YouTube */}
           <View
-            accessibilityLabel="YouTube video downloads supported"
+            accessibilityLabel="YouTube supported"
             style={[
               styles.platformCard,
-              { backgroundColor: themeColors.surface, borderColor: themeColors.border },
-            ]}>
-            <View style={[styles.platformIcon, { backgroundColor: '#EF44441A' }]}>
+              {
+                backgroundColor: themeColors.surface,
+                borderColor: themeColors.border,
+              },
+            ]}
+          >
+            <View
+              style={[styles.platformIcon, { backgroundColor: "#EF44441A" }]}
+            >
               <Ionicons name="logo-youtube" size={19} color="#EF4444" />
             </View>
-            <View style={styles.platformCopy}>
-              <Text style={[styles.platformTitle, { color: themeColors.text }]}>YouTube</Text>
-              <Text style={[styles.platformCaption, { color: themeColors.textMuted }]}>Videos supported</Text>
-            </View>
-            <Ionicons name="checkmark-circle" size={16} color={themeColors.success} />
+
+            <Text style={[styles.platformTitle, { color: themeColors.text }]}>
+              YouTube
+            </Text>
+
+            <Ionicons
+              name="checkmark-circle"
+              size={17}
+              color={themeColors.success}
+            />
           </View>
 
+          {/* Facebook */}
           <View
-            accessibilityLabel="Facebook video downloads supported"
+            accessibilityLabel="Facebook supported"
             style={[
               styles.platformCard,
-              { backgroundColor: themeColors.surface, borderColor: themeColors.border },
-            ]}>
-            <View style={[styles.platformIcon, { backgroundColor: '#1877F21A' }]}>
+              {
+                backgroundColor: themeColors.surface,
+                borderColor: themeColors.border,
+              },
+            ]}
+          >
+            <View
+              style={[styles.platformIcon, { backgroundColor: "#1877F21A" }]}
+            >
               <Ionicons name="logo-facebook" size={19} color="#1877F2" />
             </View>
-            <View style={styles.platformCopy}>
-              <Text style={[styles.platformTitle, { color: themeColors.text }]}>Facebook</Text>
-              <Text style={[styles.platformCaption, { color: themeColors.textMuted }]}>Videos supported</Text>
+
+            <Text style={[styles.platformTitle, { color: themeColors.text }]}>
+              Facebook
+            </Text>
+
+            <Ionicons
+              name="checkmark-circle"
+              size={17}
+              color={themeColors.success}
+            />
+          </View>
+
+          {/* Instagram - Beta */}
+          <View
+            accessibilityLabel="Instagram in beta"
+            style={[
+              styles.platformCard,
+              {
+                backgroundColor: themeColors.surface,
+                borderColor: themeColors.border,
+              },
+            ]}
+          >
+            <View
+              style={[styles.platformIcon, { backgroundColor: "#E1306C1A" }]}
+            >
+              <Ionicons name="logo-instagram" size={19} color="#E1306C" />
             </View>
-            <Ionicons name="checkmark-circle" size={16} color={themeColors.success} />
+
+            <Text style={[styles.platformTitle, { color: themeColors.text }]}>
+              Instagram
+            </Text>
+
+            <Ionicons name="flask-outline" size={17} color="#E1306C" />
           </View>
         </View>
 
-        <View style={[styles.inputCard, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+        <View
+          style={[
+            styles.inputCard,
+            {
+              backgroundColor: themeColors.surface,
+              borderColor: themeColors.border,
+            },
+          ]}
+        >
           <View style={styles.urlHeader}>
-            <Text style={[styles.urlLabel, { color: themeColors.textMuted }]}>Media URL</Text>
+            <Text style={[styles.urlLabel, { color: themeColors.textMuted }]}>
+              Media URL
+            </Text>
             <View style={styles.clipboardReadyRow}>
               <Ionicons
                 name="clipboard-outline"
                 size={13}
                 color={themeColors.primary}
               />
-              <Text style={[styles.clipboardReadyText, { color: themeColors.primary }]}>
+              <Text
+                style={[
+                  styles.clipboardReadyText,
+                  { color: themeColors.primary },
+                ]}
+              >
                 Clipboard ready
               </Text>
             </View>
@@ -307,8 +429,16 @@ export default function HomeRoute() {
           <View
             style={[
               styles.inputWrap,
-              { backgroundColor: themeColors.surfaceAlt, borderColor: validation ? (validation.valid ? themeColors.borderActive : themeColors.danger) : themeColors.border },
-            ]}>
+              {
+                backgroundColor: themeColors.surfaceAlt,
+                borderColor: validation
+                  ? validation.valid
+                    ? themeColors.borderActive
+                    : themeColors.danger
+                  : themeColors.border,
+              },
+            ]}
+          >
             <Ionicons
               name="link-outline"
               size={18}
@@ -332,8 +462,12 @@ export default function HomeRoute() {
               <Pressable
                 accessibilityLabel="Clear link"
                 hitSlop={8}
-                onPress={() => setUrl('')}
-                style={({ pressed }) => [styles.clearBtn, pressed && styles.pressed]}>
+                onPress={() => setUrl("")}
+                style={({ pressed }) => [
+                  styles.clearBtn,
+                  pressed && styles.pressed,
+                ]}
+              >
                 <Ionicons
                   name="close-circle"
                   size={16}
@@ -345,13 +479,19 @@ export default function HomeRoute() {
               accessibilityRole="button"
               accessibilityLabel="Paste from clipboard"
               onPress={() => void pasteFromClipboard()}
-              style={({ pressed }) => [styles.pasteBtn, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.pasteBtn,
+                pressed && styles.pressed,
+              ]}
+            >
               <Ionicons
                 name="clipboard-outline"
                 size={13}
                 color={themeColors.text}
               />
-              <Text style={[styles.pasteBtnText, { color: themeColors.text }]}>Paste</Text>
+              <Text style={[styles.pasteBtnText, { color: themeColors.text }]}>
+                Paste
+              </Text>
             </Pressable>
           </View>
 
@@ -366,111 +506,188 @@ export default function HomeRoute() {
                 ? validation.share
                   ? `HTTPS Verified • ${validation.host} active`
                   : `HTTPS Verified • Direct proxy stream active`
-                : 'HTTPS Verified • Direct proxy stream active'}
+                : "HTTPS Verified • Direct proxy stream active"}
             </Text>
           </View>
 
-          {(formatsLoading || formatsError || formats.length > 0) ? (
-          <View style={styles.formatBlock}>
-            <View style={styles.labelRow}>
-              <Text style={[styles.formatLabel, { color: themeColors.textMuted }]}>
-                Output format & fidelity
-              </Text>
-            </View>
-
-            {formatsLoading ? (
-              <View
-                style={[
-                  styles.formatLoadingCard,
-                  { backgroundColor: themeColors.surfaceAlt, borderColor: themeColors.border },
-                ]}>
-                <View style={styles.formatLoadingText}>
-                  <ActivityIndicator size="small" color={themeColors.primary} />
-                  <View style={styles.formatLoadingCopy}>
-                    <Text style={[styles.formatLoadingTitle, { color: themeColors.text }]}>
-                      Checking available formats
-                    </Text>
-                    <Text style={[styles.formatLoadingHint, { color: themeColors.textMuted }]}>
-                      Reading quality and file size from the source
-                    </Text>
-                  </View>
-                </View>
-                <ProgressBar progress={0} indeterminate height={4} />
+          {formatsLoading || formatsError || formats.length > 0 ? (
+            <View style={styles.formatBlock}>
+              <View style={styles.labelRow}>
+                <Text
+                  style={[styles.formatLabel, { color: themeColors.textMuted }]}
+                >
+                  Output format & fidelity
+                </Text>
               </View>
-            ) : formatsError ? (
-              <Text style={[styles.formatError, { color: themeColors.dangerLight }]}>
-                {formatsError}
-              </Text>
-            ) : formats.length > 0 ? (
-              <View style={styles.formatOptions}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.formatChips}>
-                <Pressable
-                  key="auto-best"
-                  accessibilityRole="button"
-                  accessibilityState={selectedFormat === null ? { selected: true } : {}}
-                  onPress={() => {
-                    haptics.tap();
-                    setSelectedFormat(null);
-                  }}
-                  style={({ pressed }) => [
-                    styles.formatChip,
-                    selectedFormat === null
-                      ? [styles.formatChipActive, { backgroundColor: themeColors.primary, borderColor: themeColors.primary }]
-                      : [styles.formatChipInactive, { backgroundColor: themeColors.surfaceAlt, borderColor: themeColors.border }],
-                    pressed && styles.pressed,
-                  ]}>
-                  <Text
-                    style={[
-                      styles.formatChipText,
-                      selectedFormat === null
-                        ? [styles.formatChipTextActive, { color: themeColors.primaryText }]
-                        : [styles.formatChipTextInactive, { color: themeColors.textMuted }],
-                    ]}>
-                    Auto (Best)
-                    {bestVideoSize ? ` · ~${formatBytes(bestVideoSize)}` : ''}
-                  </Text>
-                </Pressable>
-                {formats.map((option) => {
-                  const active = option.id === selectedFormat;
-                  return (
+
+              {formatsLoading ? (
+                <View
+                  style={[
+                    styles.formatLoadingCard,
+                    {
+                      backgroundColor: themeColors.surfaceAlt,
+                      borderColor: themeColors.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.formatLoadingText}>
+                    <ActivityIndicator
+                      size="small"
+                      color={themeColors.primary}
+                    />
+                    <View style={styles.formatLoadingCopy}>
+                      <Text
+                        style={[
+                          styles.formatLoadingTitle,
+                          { color: themeColors.text },
+                        ]}
+                      >
+                        Checking available formats
+                      </Text>
+                      <Text
+                        style={[
+                          styles.formatLoadingHint,
+                          { color: themeColors.textMuted },
+                        ]}
+                      >
+                        Reading quality and file size from the source
+                      </Text>
+                    </View>
+                  </View>
+                  <ProgressBar progress={0} indeterminate height={4} />
+                </View>
+              ) : formatsError ? (
+                <Text
+                  style={[
+                    styles.formatError,
+                    { color: themeColors.dangerLight },
+                  ]}
+                >
+                  {formatsError}
+                </Text>
+              ) : formats.length > 0 ? (
+                <View style={styles.formatOptions}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.formatChips}
+                  >
                     <Pressable
-                      key={option.id}
+                      key="auto-best"
                       accessibilityRole="button"
-                      accessibilityState={active ? { selected: true } : {}}
+                      accessibilityState={
+                        selectedFormat === null ? { selected: true } : {}
+                      }
                       onPress={() => {
                         haptics.tap();
-                        setSelectedFormat(option.id);
+                        setSelectedFormat(null);
                       }}
                       style={({ pressed }) => [
                         styles.formatChip,
-                        active
-                          ? [styles.formatChipActive, { backgroundColor: themeColors.primary, borderColor: themeColors.primary }]
-                          : [styles.formatChipInactive, { backgroundColor: themeColors.surfaceAlt, borderColor: themeColors.border }],
+                        selectedFormat === null
+                          ? [
+                              styles.formatChipActive,
+                              {
+                                backgroundColor: themeColors.primary,
+                                borderColor: themeColors.primary,
+                              },
+                            ]
+                          : [
+                              styles.formatChipInactive,
+                              {
+                                backgroundColor: themeColors.surfaceAlt,
+                                borderColor: themeColors.border,
+                              },
+                            ],
                         pressed && styles.pressed,
-                      ]}>
+                      ]}
+                    >
                       <Text
                         style={[
                           styles.formatChipText,
-                          active
-                            ? [styles.formatChipTextActive, { color: themeColors.primaryText }]
-                            : [styles.formatChipTextInactive, { color: themeColors.textMuted }],
-                        ]}>
-                        {option.label}
-                        {option.filesize ? ` · ~${formatBytes(option.filesize)}` : ''}
+                          selectedFormat === null
+                            ? [
+                                styles.formatChipTextActive,
+                                { color: themeColors.primaryText },
+                              ]
+                            : [
+                                styles.formatChipTextInactive,
+                                { color: themeColors.textMuted },
+                              ],
+                        ]}
+                      >
+                        Auto (Best)
+                        {bestVideoSize
+                          ? ` · ~${formatBytes(bestVideoSize)}`
+                          : ""}
                       </Text>
                     </Pressable>
-                  );
-                })}
-                </ScrollView>
-                <Text style={[styles.formatSizeHint, { color: themeColors.textDim }]}>
-                  Sizes are estimates; the exact total appears after the download.
-                </Text>
-              </View>
-            ) : null}
-          </View>
+                    {formats.map((option) => {
+                      const active = option.id === selectedFormat;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          accessibilityRole="button"
+                          accessibilityState={active ? { selected: true } : {}}
+                          onPress={() => {
+                            haptics.tap();
+                            setSelectedFormat(option.id);
+                          }}
+                          style={({ pressed }) => [
+                            styles.formatChip,
+                            active
+                              ? [
+                                  styles.formatChipActive,
+                                  {
+                                    backgroundColor: themeColors.primary,
+                                    borderColor: themeColors.primary,
+                                  },
+                                ]
+                              : [
+                                  styles.formatChipInactive,
+                                  {
+                                    backgroundColor: themeColors.surfaceAlt,
+                                    borderColor: themeColors.border,
+                                  },
+                                ],
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.formatChipText,
+                              active
+                                ? [
+                                    styles.formatChipTextActive,
+                                    { color: themeColors.primaryText },
+                                  ]
+                                : [
+                                    styles.formatChipTextInactive,
+                                    { color: themeColors.textMuted },
+                                  ],
+                            ]}
+                          >
+                            {option.label}
+                            {option.filesize
+                              ? ` · ~${formatBytes(option.filesize)}`
+                              : ""}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                  <Text
+                    style={[
+                      styles.formatSizeHint,
+                      { color: themeColors.textDim },
+                    ]}
+                  >
+                    Sizes are estimates; the exact total appears after the
+                    download.
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           ) : null}
 
           <GradientButton
@@ -481,7 +698,12 @@ export default function HomeRoute() {
           />
           {submitting ? (
             <View style={styles.submitProgress}>
-              <Text style={[styles.submitProgressText, { color: themeColors.textMuted }]}>
+              <Text
+                style={[
+                  styles.submitProgressText,
+                  { color: themeColors.textMuted },
+                ]}
+              >
                 Preparing your download…
               </Text>
               <ProgressBar progress={0} indeterminate height={4} />
@@ -494,9 +716,11 @@ export default function HomeRoute() {
               size={15}
               color={themeColors.textDim}
             />
-            <Text style={[styles.footnoteText, { color: themeColors.textMuted }]}>
-              Automatic clipboard detection enabled. Supports reel sequences, 4K videos, stories &
-              master audio tracks.
+            <Text
+              style={[styles.footnoteText, { color: themeColors.textMuted }]}
+            >
+              Automatic clipboard detection enabled. Supports reel sequences, 4K
+              videos, stories & master audio tracks.
             </Text>
           </View>
         </View>
@@ -508,16 +732,27 @@ export default function HomeRoute() {
                 Recent downloads
               </Text>
               <View style={styles.todayBadge}>
-                <Text style={[styles.todayBadgeText, { color: themeColors.textMuted }]}>
+                <Text
+                  style={[
+                    styles.todayBadgeText,
+                    { color: themeColors.textMuted },
+                  ]}
+                >
                   {completed.length} today
                 </Text>
               </View>
             </View>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.navigate('/library')}
-              style={({ pressed }) => [styles.viewAllBtn, pressed && styles.pressed]}>
-              <Text style={[styles.viewAllText, { color: themeColors.primary }]}>
+              onPress={() => router.navigate("/library")}
+              style={({ pressed }) => [
+                styles.viewAllBtn,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text
+                style={[styles.viewAllText, { color: themeColors.primary }]}
+              >
                 View all
               </Text>
               <Ionicons
@@ -535,7 +770,15 @@ export default function HomeRoute() {
               ))}
             </View>
           ) : (
-            <View style={[styles.emptyRecent, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+            <View
+              style={[
+                styles.emptyRecent,
+                {
+                  backgroundColor: themeColors.surface,
+                  borderColor: themeColors.border,
+                },
+              ]}
+            >
               <View style={styles.emptyIcon}>
                 <Ionicons
                   name="cloud-download-outline"
@@ -547,8 +790,11 @@ export default function HomeRoute() {
                 <Text style={[styles.emptyTitle, { color: themeColors.text }]}>
                   No downloads yet
                 </Text>
-                <Text style={[styles.emptyText, { color: themeColors.textMuted }]}>
-                  Finished files will appear here, ready to open, share or save to your gallery.
+                <Text
+                  style={[styles.emptyText, { color: themeColors.textMuted }]}
+                >
+                  Finished files will appear here, ready to open, share or save
+                  to your gallery.
                 </Text>
               </View>
             </View>
@@ -571,19 +817,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   heroTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   heroTitle: {
     ...type.hero,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: -0.5,
   },
   engineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -591,7 +837,7 @@ const styles = StyleSheet.create({
   },
   engineBadgeText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   heroSubtitle: {
     ...type.body,
@@ -599,7 +845,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   statsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
   },
   statCard: {
@@ -609,29 +855,29 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   statTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   statLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   statValue: {
     ...type.h1,
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: "800",
     marginTop: 2,
   },
   storageValueRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    flexDirection: "row",
+    alignItems: "baseline",
     gap: 2,
     marginTop: 2,
   },
   storageUnit: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   statSublabel: {
     ...type.micro,
@@ -639,34 +885,39 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   supportedPlatforms: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    width: "100%",
   },
   platformCard: {
     flex: 1,
-    minHeight: 62,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
+    minWidth: 0,
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
     borderWidth: 1,
     borderRadius: radius.md,
   },
   platformIcon: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.sm,
+    width: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 5,
   },
   platformCopy: {
     flex: 1,
     gap: 2,
   },
   platformTitle: {
-    fontSize: 12,
-    fontWeight: '700',
+    flexShrink: 1,
+    fontSize: 10,
+    fontWeight: "700",
   },
   platformCaption: {
     fontSize: 9,
@@ -677,26 +928,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   urlHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   urlLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   clipboardReadyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   clipboardReadyText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     paddingLeft: spacing.md,
     paddingRight: 6,
@@ -714,8 +965,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   pasteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -724,17 +975,17 @@ const styles = StyleSheet.create({
   },
   pasteBtnText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     marginTop: -2,
   },
   statusRowText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   formatBlock: {
     gap: spacing.xs + 2,
@@ -746,8 +997,8 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
   },
   formatLoadingText: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   formatLoadingCopy: {
@@ -756,7 +1007,7 @@ const styles = StyleSheet.create({
   },
   formatLoadingTitle: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   formatLoadingHint: {
     fontSize: 10,
@@ -767,16 +1018,16 @@ const styles = StyleSheet.create({
   },
   submitProgressText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   formatLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   formatChips: {
     gap: 8,
@@ -793,27 +1044,23 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: radius.chip,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  formatChipActive: {
-  },
-  formatChipInactive: {
-  },
+  formatChipActive: {},
+  formatChipInactive: {},
   formatChipText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
   },
-  formatChipTextActive: {
-  },
-  formatChipTextInactive: {
-  },
+  formatChipTextActive: {},
+  formatChipTextInactive: {},
   formatError: {
     fontSize: 11,
   },
   footnoteRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 6,
     marginTop: 2,
   },
@@ -826,19 +1073,19 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   sectionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   sectionTitle: {
     ...type.h2,
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: -0.3,
   },
   todayBadge: {
@@ -848,23 +1095,23 @@ const styles = StyleSheet.create({
   },
   todayBadgeText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   viewAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 2,
   },
   viewAllText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   recentList: {
     gap: spacing.md,
   },
   emptyRecent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
     padding: spacing.lg,
     borderWidth: 1,
@@ -873,8 +1120,8 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyCopy: {
     flex: 1,

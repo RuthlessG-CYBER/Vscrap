@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { selectActiveCount, useDownloadsStore } from '@/store/downloadStore';
-import { spacing, type } from '@/theme';
+import { spacing } from '@/theme';
 import { haptics } from '@/utils/haptics';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -71,9 +71,6 @@ export function AppTabBar({ state, descriptors, emitter, navigateToTab, insets }
                   </View>
                 ) : null}
               </View>
-              <Text style={[styles.label, { color: currentColor }]}>
-                {config.label}
-              </Text>
             </Pressable>
           );
         })}
@@ -97,25 +94,19 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   tabPressed: {
     opacity: 0.65,
     transform: [{ scale: 0.94 }],
   },
   iconContainer: {
-    width: 58,
-    height: 32,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-  },
-  label: {
-    ...type.micro,
-    fontSize: 10,
-    letterSpacing: 0.2,
-    fontWeight: '600',
+    borderRadius: 16,
   },
   badge: {
     position: 'absolute',

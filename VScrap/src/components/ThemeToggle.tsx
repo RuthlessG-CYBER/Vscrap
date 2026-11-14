@@ -44,11 +44,12 @@ export function ThemeToggle() {
 
 const styles = StyleSheet.create({
   button: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
+    borderRadius: 20,
   },
   pressed: {
     opacity: 0.7,
